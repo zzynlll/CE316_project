@@ -1,3 +1,4 @@
+// Author: Zeynep  (project save logic coordinated with Aylin)
 package gradeflow.ui;
 
 import gradeflow.manager.ConfigurationManager;
@@ -11,7 +12,6 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.*;
 import javafx.stage.*;
 
@@ -40,7 +40,7 @@ public class NewProjectDialog {
 
         ComboBox<Configuration> cfgBox = new ComboBox<>();
         cfgBox.setMaxWidth(Double.MAX_VALUE);
-        cfgBox.setStyle("-fx-font-size:13px;");
+        cfgBox.setStyle(Styles.COMBO_BOX);
 
         TextField dirField = field("Path to submissions folder");
         dirField.setEditable(false);
@@ -63,11 +63,15 @@ public class NewProjectDialog {
 
         loadConfigs(cfgBox);
 
-        TableView<TestCase> tcTable = buildTcTable(owner);
+        // test case table - read only display, editing via dialog
+        TableView<TestCase> tcTable = buildTcTable();
 
         Button addTcBtn = new Button("+ Add Test Case");
         addTcBtn.setStyle(Styles.BTN_SECONDARY);
-        addTcBtn.setOnAction(e -> tcData.add(new TestCase()));
+        addTcBtn.setOnAction(e -> {
+            TestCase tc = showTestCaseDialog(owner, null);
+            if (tc != null) tcData.add(tc);
+        });
 
         VBox form = new VBox(12);
         form.setPadding(new Insets(20));
@@ -104,13 +108,12 @@ public class NewProjectDialog {
             if (dirField.getText().isBlank())     { warn("Please select a submissions directory."); return null; }
 
             try {
-                List<TestCase> tcs = new ArrayList<>(tcData);
                 return new ProjectManager().createProject(
                         nameField.getText().trim(),
                         descArea.getText().trim(),
                         cfgBox.getValue().getId(),
                         dirField.getText().trim(),
-                        tcs);
+                        new ArrayList<>(tcData));
             } catch (SQLException e) {
                 warn("Save failed: " + e.getMessage());
                 return null;
@@ -120,43 +123,95 @@ public class NewProjectDialog {
         return dialog.showAndWait();
     }
 
+    // Opens a proper form dialog for adding/editing a test case.
+    // Replaces the confusing inline TableView editing.
+    private TestCase showTestCaseDialog(Stage owner, TestCase existing) {
+        Dialog<TestCase> d = new Dialog<>();
+        d.setTitle(existing == null ? "Add Test Case" : "Edit Test Case");
+        d.initOwner(owner);
+        d.initModality(Modality.WINDOW_MODAL);
+
+        TextField descField = field("Optional label, e.g. Basic sum test");
+        TextField argsField = field("e.g. 3 5 2 10");
+        TextField outField  = field("Path to expected output file");
+        outField.setEditable(false);
+
+        Button browseOut = new Button("Browse…");
+        browseOut.setStyle(Styles.BTN_SECONDARY);
+        browseOut.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Select Expected Output File");
+            File f = fc.showOpenDialog(owner);
+            if (f != null) outField.setText(f.getAbsolutePath());
+        });
+
+        if (existing != null) {
+            descField.setText(existing.getDescription() != null ? existing.getDescription() : "");
+            argsField.setText(existing.getArguments()   != null ? existing.getArguments()   : "");
+            outField.setText(existing.getExpectedOutputPath() != null ? existing.getExpectedOutputPath() : "");
+        }
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        grid.setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        addRow(grid, 0, "Description",          descField);
+        addRow(grid, 1, "Arguments",             argsField);
+        addRow(grid, 2, "Expected Output File *",
+               new HBox(8, outField, browseOut) {{ setAlignment(Pos.CENTER_LEFT); HBox.setHgrow(outField, Priority.ALWAYS); }});
+
+        Label hint = new Label("Arguments: the exact command-line arguments your program receives, e.g. \"3 5 2 10\"");
+        hint.setStyle(Styles.LABEL_MUTED + "-fx-font-size:11px;");
+        hint.setWrapText(true);
+        grid.add(hint, 0, 3, 2, 1);
+
+        d.getDialogPane().setContent(grid);
+        d.getDialogPane().setPrefWidth(460);
+        d.getDialogPane().setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        ButtonType saveBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        Button okButton = (Button) d.getDialogPane().lookupButton(saveBtn);
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            if (outField.getText().isBlank()) {
+                warn("Expected output file is required.");
+                event.consume();
+            }
+        });
+
+        d.setResultConverter(bt -> {
+            if (bt != saveBtn) return null;
+            TestCase tc = existing != null ? existing : new TestCase();
+            tc.setDescription(descField.getText().trim());
+            tc.setArguments(argsField.getText().trim());
+            tc.setExpectedOutputPath(outField.getText().trim());
+            return tc;
+        });
+
+        return d.showAndWait().orElse(null);
+    }
+
     @SuppressWarnings("unchecked")
-    private TableView<TestCase> buildTcTable(Stage owner) {
+    private TableView<TestCase> buildTcTable() {
         TableView<TestCase> t = new TableView<>(tcData);
-        t.setEditable(true);
         t.setPrefHeight(150);
         t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        t.setPlaceholder(new Label("No test cases yet."));
+        t.setPlaceholder(new Label("No test cases yet. Click '+ Add Test Case'."));
 
         TableColumn<TestCase, String> desc = new TableColumn<>("Description");
-        desc.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getDescription()));
-        desc.setCellFactory(TextFieldTableCell.forTableColumn());
-        desc.setOnEditCommit(e -> e.getRowValue().setDescription(e.getNewValue()));
+        desc.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getDescription() != null ? c.getValue().getDescription() : ""));
 
         TableColumn<TestCase, String> args = new TableColumn<>("Arguments");
-        args.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getArguments()));
-        args.setCellFactory(TextFieldTableCell.forTableColumn());
-        args.setOnEditCommit(e -> e.getRowValue().setArguments(e.getNewValue()));
+        args.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getArguments() != null ? c.getValue().getArguments() : ""));
 
         TableColumn<TestCase, String> out = new TableColumn<>("Expected Output File");
-        out.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getExpectedOutputPath()));
-        out.setCellFactory(col -> new TableCell<>() {
-            private final Button btn = new Button("Browse…");
-            {
-                btn.setStyle("-fx-font-size:11px;-fx-padding:3 8 3 8;-fx-cursor:hand;");
-                btn.setOnAction(e -> {
-                    TestCase tc = getTableView().getItems().get(getIndex());
-                    javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
-                    File f = fc.showOpenDialog(owner);
-                    if (f != null) { tc.setExpectedOutputPath(f.getAbsolutePath()); getTableView().refresh(); }
-                });
-            }
-            @Override protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty) { setGraphic(null); return; }
-                String name = (item != null && !item.isBlank()) ? new File(item).getName() : "—";
-                setGraphic(new HBox(6, new Label(name), btn) {{ setAlignment(Pos.CENTER_LEFT); }});
-            }
+        out.setCellValueFactory(c -> {
+            String path = c.getValue().getExpectedOutputPath();
+            return new SimpleStringProperty(path != null ? new File(path).getName() : "");
         });
 
         TableColumn<TestCase, Void> del = new TableColumn<>("");
@@ -201,6 +256,15 @@ public class NewProjectDialog {
         tf.setPromptText(prompt);
         tf.setStyle(Styles.TEXT_FIELD);
         return tf;
+    }
+
+    private void addRow(GridPane grid, int row, String label, javafx.scene.Node control) {
+        Label l = new Label(label);
+        l.setStyle(Styles.LABEL_MUTED);
+        l.setMinWidth(160);
+        GridPane.setHgrow(control, Priority.ALWAYS);
+        grid.add(l, 0, row);
+        grid.add(control, 1, row);
     }
 
     private void warn(String msg) {

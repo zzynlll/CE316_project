@@ -22,7 +22,6 @@ Extracted student files go to ~/GradeFlow/work/{projectId}/.
 | R5  | JSON import/export of configurations                  | ✅          |
 | R6  | Batch ZIP processing (no manual one-by-one)           | ✅          |
 | R10 | Open and save projects                                | ✅          |
-| R1  | Windows installer                                     | Milestone 3 |
 | R2  | Help manual (full HTML)                               | Milestone 3 |
 
 ---

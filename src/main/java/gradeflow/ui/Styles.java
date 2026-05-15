@@ -39,11 +39,17 @@ public final class Styles {
 
     public static final String TEXT_FIELD =
         "-fx-background-color:" + SURFACE + ";-fx-border-color:" + BORDER + ";" +
-        "-fx-border-radius:6;-fx-background-radius:6;-fx-padding:7 10 7 10;-fx-font-size:13px;";
+        "-fx-border-radius:6;-fx-background-radius:6;-fx-padding:7 10 7 10;" +
+        "-fx-font-size:13px;-fx-text-fill:" + TEXT + ";";
 
     public static final String TEXT_AREA =
         "-fx-background-color:" + SURFACE + ";-fx-border-color:" + BORDER + ";" +
-        "-fx-border-radius:6;-fx-background-radius:6;-fx-font-size:12px;";
+        "-fx-border-radius:6;-fx-background-radius:6;-fx-font-size:12px;" +
+        "-fx-text-fill:" + TEXT + ";";
+
+    public static final String RADIO_BUTTON = "-fx-text-fill:" + TEXT + ";-fx-font-size:13px;";
+
+    public static final String COMBO_BOX    = "-fx-font-size:13px;-fx-text-fill:" + TEXT + ";";
 
     public static final String LABEL_MUTED  = "-fx-text-fill:" + TEXT_MUTED + ";-fx-font-size:12px;";
     public static final String LABEL_BOLD   = "-fx-text-fill:" + TEXT + ";-fx-font-size:14px;-fx-font-weight:bold;";

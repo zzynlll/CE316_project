@@ -15,8 +15,11 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
@@ -90,9 +93,14 @@ public class MainWindow {
         Menu projectMenu = new Menu("Project");
         MenuItem runItem     = new MenuItem("Run");
         MenuItem resultsItem = new MenuItem("View Results");
+        MenuItem editProj    = new MenuItem("Edit Project…");
+        MenuItem deleteProj  = new MenuItem("Delete Project…");
         runItem.setOnAction(e     -> runPipeline());
         resultsItem.setOnAction(e -> tabPane.getSelectionModel().select(0));
-        projectMenu.getItems().addAll(runItem, resultsItem);
+        editProj.setOnAction(e   -> openEditProjectDialog());
+        deleteProj.setOnAction(e -> deleteCurrentProject());
+        projectMenu.getItems().addAll(runItem, resultsItem,
+                new SeparatorMenuItem(), editProj, deleteProj);
 
         Menu helpMenu  = new Menu("Help");
         MenuItem manual = new MenuItem("User Manual");
@@ -234,6 +242,13 @@ public class MainWindow {
 
         TableColumn<StudentReport, String> idCol = new TableColumn<>("Student ID");
         idCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStudentId()));
+        idCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-text-fill:" + Styles.TEXT + ";");
+            }
+        });
 
         TableColumn<StudentReport, String> statusCol = new TableColumn<>("Status");
         statusCol.setPrefWidth(120);
@@ -254,6 +269,13 @@ public class MainWindow {
             if (log == null || log.isBlank()) return new SimpleStringProperty("—");
             String first = log.lines().findFirst().orElse("");
             return new SimpleStringProperty(first.length() > 55 ? first.substring(0, 55) + "…" : first);
+        });
+        logCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-text-fill:" + Styles.TEXT + ";");
+            }
         });
 
         TableColumn<StudentReport, Void> detailsCol = new TableColumn<>("");
@@ -293,12 +315,33 @@ public class MainWindow {
 
         TableColumn<TestCase, String> descCol = new TableColumn<>("Description");
         descCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getDescription()));
+        descCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-text-fill:" + Styles.TEXT + ";");
+            }
+        });
 
         TableColumn<TestCase, String> argsCol = new TableColumn<>("Arguments");
         argsCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getArguments()));
+        argsCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-text-fill:" + Styles.TEXT + ";");
+            }
+        });
 
         TableColumn<TestCase, String> outCol = new TableColumn<>("Expected Output File");
         outCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getExpectedOutputPath()));
+        outCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                setStyle("-fx-text-fill:" + Styles.TEXT + ";");
+            }
+        });
 
         table.getColumns().addAll(descCol, argsCol, outCol);
 
@@ -355,7 +398,7 @@ public class MainWindow {
         progressBar.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
         setStatus("Running…");
 
-        final int[] counter = {0, 0}; // [done, total]
+        final int[] counter = {0, 0};
 
         Task<Void> task = new Task<>() {
             @Override protected Void call() throws Exception {
@@ -373,7 +416,7 @@ public class MainWindow {
 
         task.setOnSucceeded(e -> {
             runButton.setDisable(false);
-            progressBar.setProgress(1.0);
+            progressBar.setVisible(false);   // hide the bar when done
             setStatus("Done — " + counter[0] + " submission(s) processed.");
             tabPane.getSelectionModel().select(0);
         });
@@ -406,6 +449,137 @@ public class MainWindow {
             d.initOwner(stage);
             d.showAndWait().ifPresent(p -> loadProject(p.getId()));
         } catch (SQLException e) { showError(e.getMessage()); }
+    }
+
+    private void openEditProjectDialog() {
+        if (currentProject == null) {
+            showInfo("Open a project first to edit it.");
+            return;
+        }
+
+        Dialog<Project> dialog = new Dialog<>();
+        dialog.setTitle("Edit Project");
+        dialog.initOwner(stage);
+        dialog.initModality(Modality.WINDOW_MODAL);
+        dialog.setResizable(true);
+
+        TextField nameField = new TextField(currentProject.getName());
+        nameField.setPromptText("Project name");
+        nameField.setStyle(Styles.TEXT_FIELD);
+
+        TextArea descArea = new TextArea(currentProject.getDescription());
+        descArea.setPromptText("Optional description");
+        descArea.setPrefRowCount(2);
+        descArea.setStyle(Styles.TEXT_AREA);
+
+        ComboBox<Configuration> cfgBox = new ComboBox<>();
+        cfgBox.setMaxWidth(Double.MAX_VALUE);
+        cfgBox.setStyle("-fx-font-size:13px;");
+        try {
+            loadConfigs(cfgBox);
+            if (currentProject.getConfiguration() != null) {
+                cfgBox.setValue(currentProject.getConfiguration());
+            } else {
+                for (Configuration c : cfgBox.getItems()) {
+                    if (c.getId() == currentProject.getConfigurationId()) {
+                        cfgBox.setValue(c);
+                        break;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            showError("Failed to load configurations: " + e.getMessage());
+            return;
+        }
+
+        TextField dirField = new TextField(currentProject.getSubmissionsDir());
+        dirField.setEditable(false);
+        dirField.setStyle(Styles.TEXT_FIELD);
+
+        Button browseDir = new Button("Browse…");
+        browseDir.setStyle(Styles.BTN_SECONDARY);
+        browseDir.setOnAction(e -> {
+            DirectoryChooser dc = new DirectoryChooser();
+            dc.setTitle("Select Submissions Directory");
+            File dir = dc.showDialog(stage);
+            if (dir != null) dirField.setText(dir.getAbsolutePath());
+        });
+
+        VBox form = new VBox(12);
+        form.setPadding(new Insets(20));
+        form.setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        form.getChildren().addAll(
+                group("Project Name *", nameField),
+                group("Description", descArea),
+                group("Configuration *", cfgBox),
+                group("Submissions Directory *",
+                        new HBox(8, dirField, browseDir) {{ setAlignment(Pos.CENTER_LEFT); HBox.setHgrow(dirField, Priority.ALWAYS); }}));
+
+        dialog.getDialogPane().setContent(form);
+        dialog.getDialogPane().setPrefWidth(560);
+        dialog.getDialogPane().setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        ButtonType saveBtn = new ButtonType("Save Changes", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(bt -> {
+            if (bt != saveBtn) return null;
+            if (nameField.getText().isBlank()) { warn("Project name is required."); return null; }
+            if (cfgBox.getValue() == null) { warn("Please select a configuration."); return null; }
+            if (dirField.getText().isBlank()) { warn("Please select a submissions directory."); return null; }
+
+            currentProject.setName(nameField.getText().trim());
+            currentProject.setDescription(descArea.getText().trim());
+            currentProject.setConfigurationId(cfgBox.getValue().getId());
+            currentProject.setConfiguration(cfgBox.getValue());
+            currentProject.setSubmissionsDir(dirField.getText().trim());
+            return currentProject;
+        });
+
+        dialog.showAndWait().ifPresent(p -> {
+            try {
+                pm.saveProject(p);
+                refreshSidebar();
+                loadProject(p.getId());
+                setStatus("Project updated: " + p.getName());
+            } catch (SQLException ex) {
+                showError("Failed to save project: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void deleteCurrentProject() {
+        if (currentProject == null) {
+            showInfo("Open a project first to delete it.");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete project \"" + currentProject.getName() + "\"? This cannot be undone.",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Delete Project");
+        confirm.initOwner(stage);
+        confirm.showAndWait().filter(b -> b == ButtonType.YES).ifPresent(b -> {
+            try {
+                pm.deleteProject(currentProject.getId());
+                currentProject = null;
+                projectNameLabel.setText("No project open");
+                runButton.setDisable(true);
+                reportData.clear();
+                testCaseData.clear();
+                refreshSidebar();
+                setStatus("Project deleted.");
+            } catch (SQLException ex) {
+                showError("Failed to delete project: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void loadConfigs(ComboBox<Configuration> box) throws SQLException {
+        List<Configuration> all = new ConfigurationManager().getAll();
+        box.getItems().setAll(all);
+        if (!all.isEmpty() && box.getValue() == null) box.setValue(all.get(0));
     }
 
     private void pickAndEditConfig() {
@@ -479,6 +653,11 @@ public class MainWindow {
     private void showError(String msg) {
         Alert a = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
         a.setTitle("Error"); a.initOwner(stage); a.showAndWait();
+    }
+
+    private void warn(String msg) {
+        Alert a = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        a.setTitle("Warning"); a.initOwner(stage); a.showAndWait();
     }
 
     private void showInfo(String msg) {

@@ -33,11 +33,14 @@ public class ConfigurationDialog {
         compiledRb.setToggleGroup(tg);
         interpretedRb.setToggleGroup(tg);
         compiledRb.setSelected(true);
+        compiledRb.setStyle(Styles.RADIO_BUTTON);
+        interpretedRb.setStyle(Styles.RADIO_BUTTON);
 
         ComboBox<ComparisonMethod> cmpBox = new ComboBox<>();
         cmpBox.getItems().addAll(ComparisonMethod.values());
         cmpBox.setValue(ComparisonMethod.TRIMMED);
         cmpBox.setMaxWidth(Double.MAX_VALUE);
+        cmpBox.setStyle(Styles.COMBO_BOX);
 
         Button browseBtn = new Button("Browse…");
         browseBtn.setStyle(Styles.BTN_SECONDARY);

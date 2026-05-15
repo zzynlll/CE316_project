@@ -60,7 +60,7 @@ public class AssignmentProcessor {
     }
 
     private void runPipeline(File zipFile, StudentReport report) {
-
+ // Step 1 - extract
         File studentDir;
         try {
             studentDir = zipHandler.extract(zipFile, workDir);
@@ -69,15 +69,17 @@ public class AssignmentProcessor {
             return;
         }
 
+        // Step 2 - check source file exists (applies to BOTH compiled and interpreted)
+        // Must be before compile/run so we get MISSING_FILE instead of a confusing error
+        File srcFile = new File(studentDir, cfg.getSourceFileName());
+        if (!srcFile.exists()) {
+            report.markMissingFile(cfg.getSourceFileName());
+            return;
+        }
 
+        // Step 3 - compile (skip for interpreted languages)
         if (cfg.isCompiled()) {
-            File src = new File(studentDir, cfg.getSourceFileName());
-            if (!src.exists()) {
-                report.markMissingFile(cfg.getSourceFileName());
-                return;
-            }
-
-            List<String> compileCmd = buildCompileCmd(src);
+            List<String> compileCmd = buildCompileCmd(srcFile);
             CommandExecutor.Result cr;
             try {
                 cr = cmdExec.run(compileCmd, studentDir, CommandExecutor.COMPILE_TIMEOUT);
@@ -92,7 +94,8 @@ public class AssignmentProcessor {
             if (!cr.ok())    { report.markCompileError(cr.combined()); return; }
         }
 
-
+        // Step 4 - run with test case arguments
+        // TODO: loop over all test cases; using first one for the prototype
         List<TestCase> tcs = project.getTestCases();
         if (tcs.isEmpty()) {
             report.setResult(true, "No test cases defined.");
@@ -105,7 +108,7 @@ public class AssignmentProcessor {
         try {
             rr = cmdExec.run(runCmd, studentDir, CommandExecutor.RUN_TIMEOUT);
         } catch (Exception e) {
-            report.markRuntimeError("Could not start process : " + e.getMessage());
+            report.markRuntimeError("Could not start process: " + e.getMessage());
             return;
         }
 
@@ -118,7 +121,7 @@ public class AssignmentProcessor {
             return;
         }
 
-
+        // Step 5 - compare output
         try {
             OutputComparator.CompareResult cmp = comparator.compare(
                     rr.stdout, Path.of(tc.getExpectedOutputPath()), cfg.getComparisonMethod());

@@ -135,6 +135,16 @@ public class DatabaseManager {
         ps.close();
     }
 
+    public int countProjectsByConfig(int configId) throws SQLException {
+        PreparedStatement ps = conn.prepareStatement(
+            "SELECT COUNT(*) FROM projects WHERE config_id=?");
+        ps.setInt(1, configId);
+        ResultSet rs = ps.executeQuery();
+        int count = rs.next() ? rs.getInt(1) : 0;
+        ps.close();
+        return count;
+    }
+
     public List<Configuration> getAllConfigurations() throws SQLException {
         List<Configuration> list = new ArrayList<>();
         ResultSet rs = conn.createStatement().executeQuery(

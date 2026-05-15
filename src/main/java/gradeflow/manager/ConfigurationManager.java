@@ -23,6 +23,11 @@ public class ConfigurationManager {
     }
 
     public void delete(int id) throws SQLException {
+        int usedBy = db.countProjectsByConfig(id);
+        if (usedBy > 0)
+            throw new SQLException(
+                "Cannot delete: " + usedBy + " project(s) use this configuration. " +
+                "Delete those projects first.");
         db.deleteConfiguration(id);
     }
 
