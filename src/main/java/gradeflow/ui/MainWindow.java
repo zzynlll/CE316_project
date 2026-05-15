@@ -664,4 +664,12 @@ public class MainWindow {
         Alert a = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
         a.setTitle("Info"); a.initOwner(stage); a.showAndWait();
     }
+
+    private javafx.scene.layout.VBox group(String label, javafx.scene.Node control) {
+        javafx.scene.control.Label l = new javafx.scene.control.Label(label);
+        l.setStyle(Styles.LABEL_MUTED + "-fx-font-weight:bold;");
+        javafx.scene.layout.VBox g = new javafx.scene.layout.VBox(5, l, control);
+        if (control instanceof javafx.scene.layout.Region r) r.setMaxWidth(Double.MAX_VALUE);
+        return g;
+    }
 }
