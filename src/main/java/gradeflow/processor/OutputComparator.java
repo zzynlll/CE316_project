@@ -43,7 +43,11 @@ public class OutputComparator {
     private String prepare(String text, ComparisonMethod method) {
         text = text.replace("\r\n", "\n").replace("\r", "\n");
         if (method == ComparisonMethod.TRIMMED) {
-            text = text.lines().map(String::trim).reduce("", (a, b) -> a + b + "\n");
+            text = text.lines()
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .reduce((a, b) -> a + "\n" + b)
+                    .orElse("");
         }
         return text;
     }

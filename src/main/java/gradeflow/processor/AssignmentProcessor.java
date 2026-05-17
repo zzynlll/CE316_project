@@ -142,10 +142,28 @@ public class AssignmentProcessor {
     }
 
     private List<String> buildRunCmd(File studentDir, String args) {
-        List<String> cmd = new ArrayList<>(
-                Arrays.asList(cfg.getRunCommand().trim().split("\\s+")));
-        if (args != null && !args.isBlank())
+        List<String> cmd = new ArrayList<>();
+
+        String[] parts = cfg.getRunCommand().trim().split("\\s+");
+
+        if (parts.length > 0) {
+            File runFile = new File(studentDir, parts[0]);
+
+            if (runFile.exists()) {
+                cmd.add(runFile.getAbsolutePath());
+            } else {
+                cmd.add(parts[0]);
+            }
+
+            for (int i = 1; i < parts.length; i++) {
+                cmd.add(parts[i]);
+            }
+        }
+
+        if (args != null && !args.isBlank()) {
             cmd.addAll(Arrays.asList(args.trim().split("\\s+")));
+        }
+
         return cmd;
     }
 }

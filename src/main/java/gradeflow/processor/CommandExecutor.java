@@ -16,6 +16,17 @@ public class CommandExecutor {
         pb.directory(workDir);
         pb.redirectErrorStream(false);
 
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            String oldPath = pb.environment().getOrDefault("PATH", "");
+            pb.environment().put(
+                    "PATH",
+                    workDir.getAbsolutePath()
+                            + File.pathSeparator + "C:\\msys64\\ucrt64\\bin"
+                            + File.pathSeparator + "C:\\msys64\\mingw64\\bin"
+                            + File.pathSeparator + oldPath
+            );
+        }
+
         Process proc = pb.start();
 
 
