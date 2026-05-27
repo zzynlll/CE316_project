@@ -130,11 +130,11 @@ public class AssignmentProcessor {
             if (runLogBuilder.length() > 0) runLogBuilder.append("\n\n");
             runLogBuilder.append("[").append(label).append("]\n").append(rr.combined());
 
-            // Step 5 - compare output for this test case
-            if (rr.exitCode != 0 && rr.stdout.isBlank()) {
-                diffLogBuilder.append("[").append(label).append(": RUNTIME ERROR]\n")
-                        .append(rr.combined()).append("\n\n");
-                continue;
+            if (rr.exitCode != 0) {
+                report.setRunLog(runLogBuilder.toString());
+                report.markRuntimeError(rr.combined());
+                report.setDiffLog(diffLogBuilder.toString());
+                return;
             }
 
             try {
