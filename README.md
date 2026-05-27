@@ -1,32 +1,44 @@
 # GradeFlow — CE316 Group Project
 
-## Run
+---
 
-bash
-mvn javafx:run
+## Requirements Status
 
-Database is created automatically at ~/GradeFlow/gradeflow.db.  
-Extracted student files go to ~/GradeFlow/work/{projectId}/.
+| Req | Description                                           | Status |
+| --- | ----------------------------------------------------- | ------ |
+| R2  | Help manual accessible from Help menu                 | ✅     |
+| R3  | Create / open project with configuration              | ✅     |
+| R4  | Create, edit, delete configurations; edit test cases  | ✅     |
+| R5  | JSON import / export of configurations                | ✅     |
+| R6  | Batch ZIP processing (entire directory, no manual)    | ✅     |
+| R7  | Compile / interpret student source code               | ✅     |
+| R8  | Compare output (EXACT / TRIMMED), all test cases      | ✅     |
+| R9  | Display per-student results with detailed logs        | ✅     |
+| R10 | Open and save projects at any time                    | ✅     |
+| R1  | Windows installer (Inno Setup / jpackage)             | ✅     |
+
 
 ---
 
-## Requirements Covered
+## Architecture
 
-| Req | Description                                           | Status      |
-| --- | ----------------------------------------------------- | ----------- |
-| R3  | Create / open project with configuration              | ✅          |
-| R4  | Create, edit, delete, import, export configurations   | ✅          |
-| R7  | Compile / interpret student source code               | ✅          |
-| R8  | Compare output with expected output (EXACT / TRIMMED) | ✅          |
-| R9  | Display per-student results with detailed logs        | ✅          |
-| R5  | JSON import/export of configurations                  | ✅          |
-| R6  | Batch ZIP processing (no manual one-by-one)           | ✅          |
-| R10 | Open and save projects                                | ✅          |
-| R2  | Help manual (full HTML)                               | Milestone 3 |
+```
+gradeflow/
+├── model/          — Configuration, Project, TestCase, StudentReport, enums
+├── db/             — DatabaseManager (SQLite singleton, all CRUD)
+├── manager/        — ProjectManager, ConfigurationManager (business logic)
+├── processor/      — AssignmentProcessor, CommandExecutor, OutputComparator, ZipHandler
+└── ui/             — MainWindow, ConfigurationDialog, NewProjectDialog,
+                      ResultDetailsDialog, HelpWindow, Styles
+```
 
----
+### Grading pipeline (AssignmentProcessor)
 
-## Known Limitation (prototype)
+1. Scan submissions directory for `.zip` files.
+2. Extract each ZIP to `~/GradeFlow/work/{projectId}/{studentId}/`.
+3. Verify source file is present (`MISSING_FILE` if not).
+4. Compile with configured compiler (`COMPILE_ERROR` / `TIMEOUT` on failure).
+5. For **every** test case: run the program, compare stdout to the expected output file.
+6. Final status: `PASS` if all test cases match, `FAIL` otherwise (aggregated diff log).
 
-AssignmentProcessor currently runs only the _first_ test case per student.  
-The TODO comment in AssignmentProcessor.java marks where the loop should go.
+Timeouts: 30 s compile · 10 s per test case execution.

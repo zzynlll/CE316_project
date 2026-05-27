@@ -1,5 +1,6 @@
 package gradeflow.ui;
 
+import gradeflow.db.DatabaseManager;
 import gradeflow.manager.ConfigurationManager;
 import gradeflow.manager.ProjectManager;
 import gradeflow.model.*;
@@ -16,6 +17,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -165,21 +167,35 @@ public class MainWindow {
         projectListBox.getChildren().clear();
         try {
             for (Project p : pm.getAllProjects()) {
+                boolean selected = currentProject != null && currentProject.getId() == p.getId();
+
                 HBox row = new HBox(10);
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.setPadding(new Insets(8, 12, 8, 12));
-                row.setStyle("-fx-background-radius:6;-fx-cursor:hand;");
 
-                Circle dot = new Circle(4, Color.web(Styles.PRIMARY));
+                Circle dot = new Circle(4, Color.web(selected ? "white" : Styles.PRIMARY));
                 Label  lbl = new Label(p.getName());
-                lbl.setStyle("-fx-text-fill:#CBD5E1;-fx-font-size:13px;");
                 lbl.setMaxWidth(160);
 
                 row.getChildren().addAll(dot, lbl);
-                row.setOnMouseEntered(e -> row.setStyle(
-                        "-fx-background-color:#334155;-fx-background-radius:6;-fx-cursor:hand;"));
-                row.setOnMouseExited(e  -> row.setStyle(
-                        "-fx-background-radius:6;-fx-cursor:hand;"));
+
+                if (selected) {
+                    row.setStyle("-fx-background-color:" + Styles.PRIMARY +
+                                 ";-fx-background-radius:6;-fx-cursor:hand;");
+                    lbl.setStyle("-fx-text-fill:white;-fx-font-size:13px;-fx-font-weight:bold;");
+                } else {
+                    row.setStyle("-fx-background-radius:6;-fx-cursor:hand;");
+                    lbl.setStyle("-fx-text-fill:#CBD5E1;-fx-font-size:13px;");
+                }
+
+                row.setOnMouseEntered(e -> {
+                    if (currentProject == null || currentProject.getId() != p.getId())
+                        row.setStyle("-fx-background-color:#334155;-fx-background-radius:6;-fx-cursor:hand;");
+                });
+                row.setOnMouseExited(e -> {
+                    if (currentProject == null || currentProject.getId() != p.getId())
+                        row.setStyle("-fx-background-radius:6;-fx-cursor:hand;");
+                });
                 row.setOnMouseClicked(e -> loadProject(p.getId()));
                 projectListBox.getChildren().add(row);
             }
@@ -343,13 +359,172 @@ public class MainWindow {
             }
         });
 
-        table.getColumns().addAll(descCol, argsCol, outCol);
+        TableColumn<TestCase, Void> editCol = new TableColumn<>("");
+        editCol.setPrefWidth(60);
+        editCol.setCellFactory(col -> new TableCell<>() {
+            private final Button btn = new Button("Edit");
+            {
+                btn.setStyle("-fx-background-color:" + Styles.PRIMARY + ";-fx-text-fill:white;" +
+                             "-fx-background-radius:5;-fx-font-size:11px;-fx-padding:4 10 4 10;-fx-cursor:hand;");
+                btn.setOnAction(e -> {
+                    if (currentProject == null) return;
+                    TestCase tc = getTableView().getItems().get(getIndex());
+                    TestCase result = showTestCaseDialog(tc);
+                    if (result != null) {
+                        try {
+                            DatabaseManager.getInstance().updateTestCase(tc);
+                            getTableView().refresh();
+                        } catch (java.sql.SQLException ex) {
+                            showError("Failed to update test case: " + ex.getMessage());
+                        }
+                    }
+                });
+            }
+            @Override protected void updateItem(Void v, boolean empty) {
+                super.updateItem(v, empty);
+                setGraphic(empty ? null : btn);
+            }
+        });
 
-        VBox wrap = new VBox(table);
+        TableColumn<TestCase, Void> delCol = new TableColumn<>("");
+        delCol.setPrefWidth(70);
+        delCol.setCellFactory(col -> new TableCell<>() {
+            private final Button btn = new Button("Delete");
+            {
+                btn.setStyle("-fx-background-color:#EF4444;-fx-text-fill:white;" +
+                             "-fx-background-radius:5;-fx-font-size:11px;-fx-padding:4 10 4 10;-fx-cursor:hand;");
+                btn.setOnAction(e -> {
+                    if (currentProject == null) return;
+                    TestCase tc = getTableView().getItems().get(getIndex());
+                    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                            "Delete this test case?", ButtonType.YES, ButtonType.NO);
+                    confirm.setTitle("Delete Test Case");
+                    confirm.initOwner(stage);
+                    confirm.showAndWait().filter(b -> b == ButtonType.YES).ifPresent(b -> {
+                        try {
+                            if (tc.getId() > 0) DatabaseManager.getInstance().deleteTestCase(tc.getId());
+                            testCaseData.remove(tc);
+                            currentProject.getTestCases().remove(tc);
+                        } catch (java.sql.SQLException ex) {
+                            showError("Failed to delete test case: " + ex.getMessage());
+                        }
+                    });
+                });
+            }
+            @Override protected void updateItem(Void v, boolean empty) {
+                super.updateItem(v, empty);
+                setGraphic(empty ? null : btn);
+            }
+        });
+
+        table.getColumns().addAll(descCol, argsCol, outCol, editCol, delCol);
+
+        Button addBtn = new Button("+ Add Test Case");
+        addBtn.setStyle(Styles.BTN_SECONDARY);
+        addBtn.setOnAction(e -> {
+            if (currentProject == null) {
+                showInfo("Open a project first to add test cases.");
+                return;
+            }
+            TestCase tc = showTestCaseDialog(null);
+            if (tc != null) {
+                try {
+                    tc.setProjectId(currentProject.getId());
+                    DatabaseManager.getInstance().saveTestCase(tc);
+                    testCaseData.add(tc);
+                    currentProject.getTestCases().add(tc);
+                } catch (java.sql.SQLException ex) {
+                    showError("Failed to add test case: " + ex.getMessage());
+                }
+            }
+        });
+
+        VBox wrap = new VBox(8, table, addBtn);
         wrap.setPadding(new Insets(14));
         wrap.setStyle("-fx-background-color:" + Styles.BG + ";");
-        VBox.setVgrow(wrap, Priority.ALWAYS);
+        VBox.setVgrow(table, Priority.ALWAYS);
         return wrap;
+    }
+
+    private TestCase showTestCaseDialog(TestCase existing) {
+        Dialog<TestCase> d = new Dialog<>();
+        d.setTitle(existing == null ? "Add Test Case" : "Edit Test Case");
+        d.initOwner(stage);
+        d.initModality(Modality.WINDOW_MODAL);
+
+        TextField descField = new TextField(existing != null && existing.getDescription() != null
+                ? existing.getDescription() : "");
+        descField.setPromptText("Optional label, e.g. Basic sum test");
+        descField.setStyle(Styles.TEXT_FIELD);
+
+        TextField argsField = new TextField(existing != null && existing.getArguments() != null
+                ? existing.getArguments() : "");
+        argsField.setPromptText("e.g. 3 5 2 10");
+        argsField.setStyle(Styles.TEXT_FIELD);
+
+        TextField outField = new TextField(existing != null && existing.getExpectedOutputPath() != null
+                ? existing.getExpectedOutputPath() : "");
+        outField.setPromptText("Path to expected output file");
+        outField.setEditable(false);
+        outField.setStyle(Styles.TEXT_FIELD);
+
+        Button browseOut = new Button("Browse…");
+        browseOut.setStyle(Styles.BTN_SECONDARY);
+        browseOut.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Select Expected Output File");
+            File f = fc.showOpenDialog(stage);
+            if (f != null) outField.setText(f.getAbsolutePath());
+        });
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+        grid.setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        Label descLbl = new Label("Description");  descLbl.setStyle(Styles.LABEL_MUTED); descLbl.setMinWidth(160);
+        Label argsLbl = new Label("Arguments");    argsLbl.setStyle(Styles.LABEL_MUTED); argsLbl.setMinWidth(160);
+        Label outLbl  = new Label("Expected Output File *"); outLbl.setStyle(Styles.LABEL_MUTED); outLbl.setMinWidth(160);
+
+        HBox outRow = new HBox(8, outField, browseOut);
+        outRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(outField, Priority.ALWAYS);
+
+        GridPane.setHgrow(descField, Priority.ALWAYS);
+        GridPane.setHgrow(argsField, Priority.ALWAYS);
+        GridPane.setHgrow(outRow,    Priority.ALWAYS);
+
+        grid.add(descLbl, 0, 0); grid.add(descField, 1, 0);
+        grid.add(argsLbl, 0, 1); grid.add(argsField, 1, 1);
+        grid.add(outLbl,  0, 2); grid.add(outRow,    1, 2);
+
+        Label hint = new Label("Arguments: command-line arguments passed to the program, e.g. \"3 5 2 10\"");
+        hint.setStyle(Styles.LABEL_MUTED + "-fx-font-size:11px;");
+        hint.setWrapText(true);
+        grid.add(hint, 0, 3, 2, 1);
+
+        d.getDialogPane().setContent(grid);
+        d.getDialogPane().setPrefWidth(460);
+        d.getDialogPane().setStyle("-fx-background-color:" + Styles.BG + ";");
+
+        ButtonType saveBtn = new ButtonType(existing == null ? "Add" : "Save", ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        Button okButton = (Button) d.getDialogPane().lookupButton(saveBtn);
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
+            if (outField.getText().isBlank()) { warn("Expected output file is required."); ev.consume(); }
+        });
+
+        d.setResultConverter(bt -> {
+            if (bt != saveBtn) return null;
+            TestCase tc = existing != null ? existing : new TestCase();
+            tc.setDescription(descField.getText().trim());
+            tc.setArguments(argsField.getText().trim());
+            tc.setExpectedOutputPath(outField.getText().trim());
+            return tc;
+        });
+
+        return d.showAndWait().orElse(null);
     }
 
     // Status bar 
@@ -385,6 +560,7 @@ public class MainWindow {
             reportData.setAll(currentProject.getReports());
             testCaseData.setAll(currentProject.getTestCases());
             setStatus("Opened: " + currentProject.getName());
+            refreshSidebar();
         } catch (SQLException e) {
             showError("Failed to open project: " + e.getMessage());
         }
@@ -433,10 +609,7 @@ public class MainWindow {
 
     private void openNewProjectDialog() {
         Optional<Project> result = new NewProjectDialog().show(stage);
-        result.ifPresent(p -> {
-            refreshSidebar();
-            loadProject(p.getId());
-        });
+        result.ifPresent(p -> loadProject(p.getId()));
     }
 
     private void openPickProjectDialog() {

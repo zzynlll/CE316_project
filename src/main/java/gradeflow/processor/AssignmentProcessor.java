@@ -94,42 +94,67 @@ public class AssignmentProcessor {
             if (!cr.ok())    { report.markCompileError(cr.combined()); return; }
         }
 
-        // Step 4 - run with test case arguments
-        // TODO: loop over all test cases; using first one for the prototype
+        // Step 4 - run with all test cases and compare output
         List<TestCase> tcs = project.getTestCases();
         if (tcs.isEmpty()) {
             report.setResult(true, "No test cases defined.");
             return;
         }
 
-        TestCase tc = tcs.get(0);
-        List<String> runCmd = buildRunCmd(studentDir, tc.getArguments());
-        CommandExecutor.Result rr;
-        try {
-            rr = cmdExec.run(runCmd, studentDir, CommandExecutor.RUN_TIMEOUT);
-        } catch (Exception e) {
-            report.markRuntimeError("Could not start process: " + e.getMessage());
-            return;
+        StringBuilder runLogBuilder  = new StringBuilder();
+        StringBuilder diffLogBuilder = new StringBuilder();
+        int passCount = 0;
+
+        for (int i = 0; i < tcs.size(); i++) {
+            TestCase tc = tcs.get(i);
+            String label = "Test Case " + (i + 1) +
+                    (tc.getDescription() != null && !tc.getDescription().isBlank()
+                            ? " (" + tc.getDescription() + ")" : "");
+
+            List<String> runCmd = buildRunCmd(studentDir, tc.getArguments());
+            CommandExecutor.Result rr;
+            try {
+                rr = cmdExec.run(runCmd, studentDir, CommandExecutor.RUN_TIMEOUT);
+            } catch (Exception e) {
+                report.setRunLog(runLogBuilder.toString());
+                report.markRuntimeError("Could not start process: " + e.getMessage());
+                return;
+            }
+
+            if (rr.timedOut) {
+                report.setRunLog(runLogBuilder.toString());
+                report.markTimeout();
+                return;
+            }
+
+            if (runLogBuilder.length() > 0) runLogBuilder.append("\n\n");
+            runLogBuilder.append("[").append(label).append("]\n").append(rr.combined());
+
+            // Step 5 - compare output for this test case
+            if (rr.exitCode != 0 && rr.stdout.isBlank()) {
+                diffLogBuilder.append("[").append(label).append(": RUNTIME ERROR]\n")
+                        .append(rr.combined()).append("\n\n");
+                continue;
+            }
+
+            try {
+                OutputComparator.CompareResult cmp = comparator.compare(
+                        rr.stdout, Path.of(tc.getExpectedOutputPath()), cfg.getComparisonMethod());
+                if (cmp.matched) {
+                    passCount++;
+                    diffLogBuilder.append("[").append(label).append(": PASS]\n\n");
+                } else {
+                    diffLogBuilder.append("[").append(label).append(": FAIL]\n")
+                            .append(cmp.diff).append("\n\n");
+                }
+            } catch (Exception e) {
+                diffLogBuilder.append("[").append(label).append(": ERROR — ")
+                        .append(e.getMessage()).append("]\n\n");
+            }
         }
 
-        if (rr.timedOut) { report.markTimeout(); return; }
-
-        report.setRunLog(rr.combined());
-
-        if (rr.exitCode != 0 && rr.stdout.isBlank()) {
-            report.markRuntimeError(rr.combined());
-            return;
-        }
-
-        // Step 5 - compare output
-        try {
-            OutputComparator.CompareResult cmp = comparator.compare(
-                    rr.stdout, Path.of(tc.getExpectedOutputPath()), cfg.getComparisonMethod());
-            report.setResult(cmp.matched, cmp.diff);
-        } catch (Exception e) {
-            report.setDiffLog("Could not read expected output file: " + e.getMessage());
-            report.setResult(false, report.getDiffLog());
-        }
+        report.setRunLog(runLogBuilder.toString());
+        report.setResult(passCount == tcs.size(), diffLogBuilder.toString());
     }
 
     private List<String> buildCompileCmd(File sourceFile) {

@@ -1,4 +1,3 @@
-// Author: Zeynep  (project save logic coordinated with Aylin)
 package gradeflow.ui;
 
 import gradeflow.manager.ConfigurationManager;
@@ -101,12 +100,20 @@ public class NewProjectDialog {
         ButtonType cancelBtn = new ButtonType("Cancel",          ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(createBtn, cancelBtn);
 
+        // Validate before allowing the dialog to close — consuming the event keeps it open.
+        Button createButton = (Button) dialog.getDialogPane().lookupButton(createBtn);
+        createButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            if (nameField.getText().isBlank()) {
+                warn("Project name is required."); event.consume();
+            } else if (cfgBox.getValue() == null) {
+                warn("Please select a configuration."); event.consume();
+            } else if (dirField.getText().isBlank()) {
+                warn("Please select a submissions directory."); event.consume();
+            }
+        });
+
         dialog.setResultConverter(bt -> {
             if (bt != createBtn) return null;
-            if (nameField.getText().isBlank())   { warn("Project name is required."); return null; }
-            if (cfgBox.getValue() == null)        { warn("Please select a configuration."); return null; }
-            if (dirField.getText().isBlank())     { warn("Please select a submissions directory."); return null; }
-
             try {
                 return new ProjectManager().createProject(
                         nameField.getText().trim(),

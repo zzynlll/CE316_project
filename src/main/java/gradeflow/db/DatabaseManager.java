@@ -274,6 +274,24 @@ public class DatabaseManager {
         ps.close();
     }
 
+    public void deleteTestCase(int id) throws SQLException {
+        PreparedStatement ps = conn.prepareStatement("DELETE FROM test_cases WHERE id=?");
+        ps.setInt(1, id);
+        ps.executeUpdate();
+        ps.close();
+    }
+
+    public void updateTestCase(TestCase tc) throws SQLException {
+        PreparedStatement ps = conn.prepareStatement(
+            "UPDATE test_cases SET description=?, arguments=?, expected_output_path=? WHERE id=?");
+        ps.setString(1, tc.getDescription());
+        ps.setString(2, tc.getArguments());
+        ps.setString(3, tc.getExpectedOutputPath());
+        ps.setInt(4, tc.getId());
+        ps.executeUpdate();
+        ps.close();
+    }
+
     public List<TestCase> getTestCasesByProject(int projectId) throws SQLException {
         List<TestCase> list = new ArrayList<>();
         PreparedStatement ps = conn.prepareStatement(
