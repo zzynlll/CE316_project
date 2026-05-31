@@ -1,5 +1,8 @@
-# GradeFlow — CE316 Group Project
-
+# GradeFlow - CE316 Group Project
+GradeFlow is an Integrated Assignment Environment. It is an autonomous GUI tool created for
+lecturers reviewing student submissions that allows users to build, save, and reuse
+language-specific environment configuration files. The software supports both compiled and
+interpreted languages, such as C, Java, Javascript, and Python. 
 ---
 
 ## Requirements Status
@@ -15,7 +18,7 @@
 | R8  | Compare output (EXACT / TRIMMED), all test cases      | ✅     |
 | R9  | Display per-student results with detailed logs        | ✅     |
 | R10 | Open and save projects at any time                    | ✅     |
-| R1  | Windows installer (Inno Setup / jpackage)             | ✅     |
+| R1  | Windows installer                                     | ✅     |
 
 
 ---
@@ -32,7 +35,7 @@ gradeflow/
                       ResultDetailsDialog, HelpWindow, Styles
 ```
 
-### Grading pipeline (AssignmentProcessor)
+### Grading pipeline 
 
 1. Scan submissions directory for `.zip` files.
 2. Extract each ZIP to `~/GradeFlow/work/{projectId}/{studentId}/`.
